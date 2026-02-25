@@ -2,6 +2,8 @@
   "name": "backend",
   "version": "1.0.0",
   "scripts": {
-    "dev": "../../.venv/bin/python -m uvicorn main:app --reload --port 8000"
+    "dev": "../../.venv/bin/python -m uvicorn main:app --reload --port 8000",
+    "test": "../../.venv/bin/python -m pytest tests/ -v",
+    "test:e2e": "../../.venv/bin/python tests/test_simulate_e2e.py"
   }
 }
