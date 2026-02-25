@@ -1,9 +1,11 @@
 {
   "name": "frappuccini",
   "version": "1.0.0",
+  "packageManager": "npm@10.8.2",
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
+    "dev:frontend": "turbo run dev --filter=frontend",
     "build": "turbo run build"
   },
   "workspaces": [
@@ -13,4 +15,3 @@
     "turbo": "^2.8.10"
   }
 }
-
