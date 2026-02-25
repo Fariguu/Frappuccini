@@ -28,6 +28,9 @@ export function useChat() {
     const [chatLoading, setChatLoading] = useState(false);
 
     const [trafficOverlay, setTrafficOverlay] = useState<TrafficOverlay | null>(null);
+    const [baselineOverlay, setBaselineOverlay] = useState<TrafficOverlay | null>(null);
+    const [compareWithBaseline, setCompareWithBaseline] = useState(false);
+    const [simulatedDate, setSimulatedDate] = useState<string | null>(null);
     const [selectedHourIndex, setSelectedHourIndex] = useState(0);
     const [simulateLoading, setSimulateLoading] = useState(false);
     const [simulateError, setSimulateError] = useState<string | null>(null);
@@ -111,7 +114,15 @@ export function useChat() {
             }
 
             const data: TrafficOverlay = await res.json();
+            // #region agent log
+            try {
+                fetch('http://127.0.0.1:7243/ingest/f65d3bd1-4a59-47f7-8eda-a434091e96ac',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useChat.ts:simulateTraffic',message:'traffic overlay received',data:{hours_count:data?.hours?.length,hours_first5:data?.hours?.slice(0,5),by_street_keys:data?.by_street?Object.keys(data.by_street).slice(0,5):[],has_00:data?.hours?.includes('00:00')},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+            } catch (_) {}
+            // #endregion
             setTrafficOverlay(data);
+            setBaselineOverlay(null);
+            setCompareWithBaseline(false);
+            setSimulatedDate(p.date);
             setSelectedHourIndex(0);
         } catch (e) {
             setSimulateError(e instanceof Error ? e.message : 'Errore simulazione');
@@ -121,17 +132,41 @@ export function useChat() {
         }
     }, []);
 
+    const handleToggleBaseline = useCallback(async () => {
+        const date = simulatedDate ?? paramsRef.current.date;
+        if (!date) return;
+
+        if (!compareWithBaseline && !baselineOverlay) {
+            try {
+                const res = await fetch(`/api/baseline?date=${date}`);
+                if (!res.ok) throw new Error();
+                const data: TrafficOverlay = await res.json();
+                setBaselineOverlay(data);
+            } catch {
+                setBaselineOverlay(null);
+                return;
+            }
+        }
+        setCompareWithBaseline((prev) => !prev);
+    }, [compareWithBaseline, baselineOverlay, simulatedDate]);
+
+    const effectiveOverlay =
+        compareWithBaseline && baselineOverlay ? baselineOverlay : trafficOverlay;
+
     return {
         messages,
         extractedParams,
         readyToSimulate,
         chatLoading,
         sendMessage,
-        trafficOverlay,
+        trafficOverlay: effectiveOverlay,
         selectedHourIndex,
         setSelectedHourIndex,
         simulateTraffic,
         simulateLoading,
         simulateError,
+        compareWithBaseline,
+        onToggleBaseline: handleToggleBaseline,
+        hasSimulation: !!trafficOverlay,
     };
 }

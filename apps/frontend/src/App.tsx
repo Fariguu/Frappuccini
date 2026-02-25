@@ -15,6 +15,9 @@ function App() {
     simulateTraffic,
     simulateLoading,
     simulateError,
+    compareWithBaseline,
+    onToggleBaseline,
+    hasSimulation,
   } = useChat();
 
   return (
@@ -28,6 +31,9 @@ function App() {
         onSimulate={simulateTraffic}
         simulateLoading={simulateLoading}
         simulateError={simulateError}
+        compareWithBaseline={compareWithBaseline}
+        onToggleBaseline={onToggleBaseline}
+        hasSimulation={hasSimulation}
       />
       <main className="flex-1 relative flex flex-col h-full overflow-hidden">
         <MapView

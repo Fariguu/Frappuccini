@@ -98,3 +98,12 @@ venv.bak/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Dataset output (file generati, troppo grandi per git)
+dataset/output/
+
+# Cursor
+.cursor/
+
+# Pytest
+.pytest_cache/

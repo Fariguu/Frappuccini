@@ -71,8 +71,16 @@ const MapView: React.FC<MapViewProps> = ({
     const timeStr = hours[Math.min(selectedHourIndex, hours.length - 1)];
 
     const streetColors = useMemo(() => {
-        if (!trafficOverlay?.by_street?.[timeStr]) return null;
-        return trafficOverlay.by_street[timeStr];
+        const colors = trafficOverlay?.by_street?.[timeStr];
+        // #region agent log
+        if (trafficOverlay && !colors && timeStr) {
+            try {
+                fetch('http://127.0.0.1:7243/ingest/f65d3bd1-4a59-47f7-8eda-a434091e96ac',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapView.tsx:streetColors',message:'no by_street for timeStr',data:{timeStr,availableHours:Object.keys(trafficOverlay?.by_street||{}).slice(0,8)},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+            } catch (_) {}
+        }
+        // #endregion
+        if (!colors) return null;
+        return colors;
     }, [trafficOverlay, timeStr]);
 
     const quartiereColors = useMemo(() => {

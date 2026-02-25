@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Send, Bot, User, Loader2, MapPin, Calendar, Clock, Users, Star } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
 
 interface ChatSidebarProps {
     messages: ChatMessage[];
@@ -18,6 +19,9 @@ interface ChatSidebarProps {
     onSimulate: () => void;
     simulateLoading: boolean;
     simulateError: string | null;
+    compareWithBaseline?: boolean;
+    onToggleBaseline?: () => void;
+    hasSimulation?: boolean;
 }
 
 const VipAnalysisBlock: React.FC<{ analysis: string }> = ({ analysis }) => {
@@ -158,6 +162,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     onSimulate,
     simulateLoading,
     simulateError,
+    compareWithBaseline = false,
+    onToggleBaseline,
+    hasSimulation = false,
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -240,6 +247,17 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             <CardFooter className="p-3 pt-0 flex flex-col gap-2">
                 {simulateError && (
                     <p className="text-[10px] text-destructive font-medium w-full">{simulateError}</p>
+                )}
+                {hasSimulation && onToggleBaseline && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                            checked={compareWithBaseline}
+                            onCheckedChange={() => onToggleBaseline()}
+                        />
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Confronta con baseline
+                        </span>
+                    </label>
                 )}
                 <Button
                     onClick={onSimulate}

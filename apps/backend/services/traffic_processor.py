@@ -3,7 +3,9 @@ Elaborazione dati traffico: caricamento CSV, applicazione moltiplicatori,
 iniezione volume evento basata su capacità, livelli congestione.
 """
 
+import json
 from datetime import date as date_type, timedelta
+from pathlib import Path
 
 import pandas as pd
 from fastapi import HTTPException
@@ -42,9 +44,9 @@ def _find_equivalent_date(target_date: date_type) -> date_type:
 
 
 _CONGESTION_THRESHOLDS: dict[str, tuple[float, float]] = {
-    "Highway": (2500, 4000),
-    "Main Road": (1000, 1600),
-    "Local Road": (450, 800),
+    "Highway": (5000, 7000),
+    "Main Road": (2000, 2800),
+    "Local Road": (1000, 1400),
 }
 
 
@@ -178,10 +180,28 @@ def process_traffic_data(
         )
 
     df_filtered = df_filtered.copy()
+    # #region agent log
+    _log = Path("/Users/flaviodemusso/Desktop/Frappuccini/.cursor/debug.log")
+    try:
+        _h1 = sorted(multipliers_by_hour.keys()) if multipliers_by_hour else []
+        _ts_sample = df_filtered["time_str"].dropna().unique()[:5].tolist()
+        with _log.open("a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"hypothesisId":"A","message":"multipliers vs time_str sample","data":{"multiplier_keys":_h1,"time_str_sample":_ts_sample,"event_end_hour":event_end_hour}})+"\n")
+    except Exception:
+        pass
+    # #endregion
     if multipliers_by_hour:
         df_filtered["traffic_volume_multiplier"] = df_filtered["time_str"].map(
             multipliers_by_hour
         )
+        # #region agent log
+        try:
+            _nan_count = df_filtered["traffic_volume_multiplier"].isna().sum()
+            with _log.open("a", encoding="utf-8") as _f:
+                _f.write(json.dumps({"hypothesisId":"B","message":"NaN after map","data":{"nan_count":int(_nan_count),"total_rows":len(df_filtered)}})+"\n")
+        except Exception:
+            pass
+        # #endregion
         df_filtered["traffic_volume_multiplier"] = df_filtered[
             "traffic_volume_multiplier"
         ].fillna(1.0)
@@ -265,6 +285,18 @@ def process_traffic_data(
         }
 
     result_by_quartiere = _build_quartiere_colors(result_by_neighborhood)
+
+    # #region agent log
+    try:
+        _hours_out = sorted(df_agg["time_str"].unique())
+        _first_5 = _hours_out[:5]
+        _has_00 = "00:00" in _hours_out
+        _by_street_first = len(result_by_street.get(_first_5[0] if _first_5 else "", {})) if _first_5 else 0
+        with _log.open("a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"hypothesisId":"C","message":"output hours and by_street","data":{"hours_count":len(_hours_out),"first_5":_first_5,"has_00":_has_00,"by_street_first_len":_by_street_first}})+"\n")
+    except Exception:
+        pass
+    # #endregion
 
     return {
         "hours": sorted(df_agg["time_str"].unique()),

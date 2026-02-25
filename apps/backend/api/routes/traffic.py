@@ -1,6 +1,8 @@
 """Endpoint per traffico baseline, simulazione evento e chat IA."""
 
+import json
 from datetime import date as date_type
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
@@ -67,6 +69,14 @@ async def simulate_day(req: SimulateDayRequest):
         base_multiplier,
         hours=list(range(24)),
     )
+    # #region agent log
+    try:
+        _log = Path("/Users/flaviodemusso/Desktop/Frappuccini/.cursor/debug.log")
+        with _log.open("a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"hypothesisId":"D","message":"simulate-day request","data":{"event_end_time":req.event_end_time,"multiplier_keys_count":len(multipliers_by_hour),"first_keys":sorted(multipliers_by_hour.keys())[:5]}})+"\n")
+    except Exception:
+        pass
+    # #endregion
 
     event_neighborhood = event_position_to_neighborhood(
         req.event_position, req.event_venue
