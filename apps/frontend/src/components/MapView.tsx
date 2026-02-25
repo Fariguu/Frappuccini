@@ -1,134 +1,158 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import type { EventScenario } from '../types/scenario';
+
+// Fix for default marker icons
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+let DefaultIcon = L.icon({
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41]
+});
+L.Marker.prototype.options.icon = DefaultIcon;
 
 interface MapViewProps {
-    intensity: number;
+    scenario: EventScenario;
+    onMapClick?: (latlng: [number, number]) => void;
 }
 
-const MapView: React.FC<MapViewProps> = ({ intensity }) => {
-    // Mock data for streets (Bari-like grid)
-    const baseStreets = [
-        { id: 's1', d: 'M 50 100 L 450 100' },
-        { id: 's2', d: 'M 50 200 L 450 200' },
-        { id: 's3', d: 'M 50 300 L 450 300' },
-        { id: 's4', d: 'M 100 50 L 100 450' },
-        { id: 's5', d: 'M 200 50 L 200 450' },
-        { id: 's6', d: 'M 300 50 L 300 450' },
-        { id: 's7', d: 'M 400 50 L 400 450' },
-    ];
+// Center of Bari
+const BARI_CENTER: [number, number] = [41.1171, 16.8719];
 
-    // Mock AMTAB stops
-    const amtabStops = [
-        { cx: 100, cy: 100 },
-        { cx: 200, cy: 200 },
-        { cx: 300, cy: 300 },
-        { cx: 400, cy: 100 },
-    ];
+// Mock GeoJSON for roads
+const MOCK_GEOJSON = {
+    "type": "FeatureCollection",
+    "features": [
+        { "type": "Feature", "properties": { "id": "road1", "name": "Via Sparano", "threshold": 0 }, "geometry": { "type": "LineString", "coordinates": [[16.8700, 41.1200], [16.8700, 41.1100]] } },
+        { "type": "Feature", "properties": { "id": "road2", "name": "Corso Vittorio Emanuele", "threshold": 2000 }, "geometry": { "type": "LineString", "coordinates": [[16.8600, 41.1250], [16.8850, 41.1250]] } },
+        { "type": "Feature", "properties": { "id": "road3", "name": "Lungomare", "threshold": 5000 }, "geometry": { "type": "LineString", "coordinates": [[16.8750, 41.1300], [16.9000, 41.1200]] } }
+    ]
+};
 
-    // Mock Bike Sharing stations
-    const bikeStations = [
-        { cx: 150, cy: 150 },
-        { cx: 250, cy: 250 },
-        { cx: 350, cy: 150 },
-    ];
+// Mock AMTAB & Sharing Nodes
+const AMTAB_STOPS: [number, number][] = [[41.121, 16.865], [41.122, 16.875], [41.123, 16.885]];
+const SHARING_NODES: [number, number][] = [[41.115, 16.868], [41.118, 16.872], [41.112, 16.878]];
 
-    // Dynamic segments (the ones that change)
-    const dynamicSegments = [
-        { id: 'd1', d: 'M 100 200 L 200 200', threshold: 20 },
-        { id: 'd2', d: 'M 200 200 L 300 200', threshold: 50 },
-        { id: 'd3', d: 'M 300 200 L 400 200', threshold: 70 },
-        { id: 'd4', d: 'M 200 100 L 200 200', threshold: 30 },
-        { id: 'd5', d: 'M 200 200 L 200 300', threshold: 60 },
-    ];
+const MapEvents = ({ onClick }: { onClick: (latlng: [number, number]) => void }) => {
+    useMapEvents({
+        click: (e) => onClick([e.latlng.lat, e.latlng.lng]),
+    });
+    return null;
+};
+
+const Legend: React.FC = () => {
+    return (
+        <div className="absolute bottom-4 left-4 bg-white/90 border border-secondary/20 p-2 text-[9px] uppercase font-bold tracking-tighter z-[1000] shadow-md flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-[1px] bg-[#878787]"></div> <span>Rete stradale base</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="w-4 h-[2px] bg-[#000000]"></div> <span>Traffico previsto</span>
+            </div>
+        </div>
+    );
+};
+
+const MapView: React.FC<MapViewProps> = ({ scenario, onMapClick }) => {
+    const [geoData, setGeoData] = useState<any>(null);
+    const [isSimulation, setIsSimulation] = useState(false);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const response = await fetch('http://localhost:8000/api/stradario');
+                if (!response.ok) throw new Error();
+                const data = await response.json();
+                if (data.error) throw new Error();
+                setGeoData(data);
+                setIsSimulation(false);
+            } catch {
+                setGeoData(MOCK_GEOJSON);
+                setIsSimulation(true);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const roadStyle = (feature: any) => {
+        const participants = scenario.event.totalPeople;
+        const threshold = feature.properties.threshold || 0;
+        const isActive = participants >= threshold;
+        const virtualIntensity = Math.min(100, participants / 100);
+        return {
+            color: isActive ? "#000000" : "#878787",
+            weight: isActive ? (2 + virtualIntensity / 20) : 1,
+            opacity: isActive ? 1 : 0.4,
+        };
+    };
 
     return (
-        <div className="flex-1 bg-background relative overflow-hidden flex items-center justify-center p-8">
-            <div className="absolute top-4 right-4 bg-white/80 border border-secondary/20 p-2 text-[10px] font-mono uppercase tracking-widest z-10 shadow-sm">
-                Map View: Bari_metropolitan_v01
+        <div className="flex-1 bg-background relative overflow-hidden flex items-center justify-center">
+            {isSimulation && (
+                <div className="absolute top-4 left-4 bg-zinc-900 text-white px-3 py-1 text-[10px] font-bold z-[2000] uppercase tracking-widest shadow-lg flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+                    SIMULATION MODE: MOCK DATA
+                </div>
+            )}
+
+            <div className="absolute top-4 right-4 bg-white/80 border border-secondary/20 p-2 text-[10px] font-mono uppercase tracking-widest z-[1000] shadow-sm">
+                GIS View: Cartografia_Bari_v02
             </div>
 
-            <svg
-                viewBox="0 0 500 500"
-                className="w-full h-full max-w-4xl drop-shadow-2xl"
-                style={{ filter: 'grayscale(0.2)' }}
-            >
-                {/* Base Layer: Streets */}
-                <g id="base-layer">
-                    {baseStreets.map((s) => (
-                        <path
-                            key={s.id}
-                            d={s.d}
-                            stroke="#878787"
-                            strokeWidth="1"
-                            strokeLinecap="round"
-                            fill="none"
-                            className="transition-all duration-700 opacity-30"
-                        />
-                    ))}
-                </g>
+            <MapContainer center={BARI_CENTER} zoom={14} className="w-full h-full" zoomControl={false}>
+                <TileLayer
+                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                    attribution='&copy; OSM'
+                />
 
-                {/* Dynamic Layer: Predicted Traffic */}
-                <g id="dynamic-layer">
-                    {dynamicSegments.map((s) => {
-                        const isActive = intensity >= s.threshold;
-                        return (
-                            <path
-                                key={s.id}
-                                d={s.d}
-                                stroke={isActive ? '#000000' : '#878787'}
-                                strokeWidth={isActive ? (2 + intensity / 20) : "1"}
-                                strokeLinecap="round"
-                                fill="none"
-                                className="transition-all duration-500 ease-out"
-                                style={{ opacity: isActive ? 1 : 0.2 }}
-                            />
-                        );
-                    })}
-                </g>
+                {onMapClick && <MapEvents onClick={onMapClick} />}
 
-                {/* Transport Layer: Points of Interest */}
-                <g id="transport-layer">
-                    {/* AMTAB Stops */}
-                    {amtabStops.map((p, i) => (
-                        <circle
-                            key={`amtab-${i}`}
-                            cx={p.cx}
-                            cy={p.cy}
-                            r="3"
-                            fill="#000000"
-                            className="hover:scale-150 transition-transform cursor-pointer"
-                        />
-                    ))}
-                    {/* Bike Sharing */}
-                    {bikeStations.map((p, i) => (
-                        <circle
-                            key={`bike-${i}`}
-                            cx={p.cx}
-                            cy={p.cy}
-                            r="4"
-                            fill="#ffffff"
-                            stroke="#000000"
-                            strokeWidth="1"
-                            className="hover:scale-150 transition-transform cursor-pointer"
-                        />
-                    ))}
-                </g>
-            </svg>
+                {geoData && (
+                    <GeoJSON
+                        key={`${isSimulation}-${scenario.event.totalPeople}`}
+                        data={geoData}
+                        style={roadStyle}
+                    />
+                )}
 
-            {/* Legend Overlay */}
-            <div className="absolute bottom-4 left-4 flex flex-col gap-1 text-[9px] uppercase font-bold tracking-tighter">
-                <div className="flex items-center gap-2">
-                    <div className="w-4 h-[1px] bg-[#878787]"></div> <span>Rete stradale base</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-4 h-[2px] bg-[#000000]"></div> <span>Traffico previsto</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-black"></div> <span>Fermate AMTAB</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-white border border-black"></div> <span>Bike Sharing</span>
-                </div>
-            </div>
+                {/* Dynamic Route Polyline */}
+                {scenario.privateTransport.routeStops.length > 1 && (
+                    <Polyline
+                        positions={scenario.privateTransport.routeStops}
+                        color="#000000"
+                        weight={3}
+                        dashArray="1, 8"
+                    />
+                )}
+
+                {/* Route Markers */}
+                {scenario.privateTransport.routeStops.map((pos, i) => (
+                    <Marker key={`stop-${i}`} position={pos} icon={L.divIcon({ className: 'bg-black w-2 h-2 border border-white' })} />
+                ))}
+
+                {/* AMTAB Overlay */}
+                {scenario.publicTransportIntegration.includes('amtab') && AMTAB_STOPS.map((pos, i) => (
+                    <Marker key={`amtab-${i}`} position={pos} icon={L.divIcon({ className: 'bg-black w-2 h-2 rounded-full border border-white' })} />
+                ))}
+
+                {/* Sharing Overlay */}
+                {scenario.publicTransportIntegration.includes('sharing') && SHARING_NODES.map((pos, i) => (
+                    <Marker key={`sharing-${i}`} position={pos} icon={L.divIcon({ className: 'bg-white w-2 h-2 rounded-full border-2 border-black' })} />
+                ))}
+
+                {/* Event Marker P */}
+                <Marker position={scenario.event.location.coords}>
+                    <Popup>
+                        <div className="text-[10px] uppercase font-bold">{scenario.event.name || "Evento"}</div>
+                    </Popup>
+                </Marker>
+
+                <Legend />
+            </MapContainer>
         </div>
     );
 };

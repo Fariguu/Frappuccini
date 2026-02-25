@@ -1,24 +1,39 @@
-import { useState } from 'react';
+import React from 'react';
 import Sidebar from './components/Sidebar';
 import MapView from './components/MapView';
+import { useScenario } from './hooks/useScenario';
 
 function App() {
-  const [eventParam, setEventParam] = useState('');
-  const [intensity, setIntensity] = useState(50);
+  const {
+    scenario,
+    updateEvent,
+    updatePrivateTransport,
+    togglePublicIntegration,
+    addRouteStop,
+    clearRoute,
+    generateJson
+  } = useScenario();
+
+  const handleTest = () => {
+    alert('Test button clicked! Current participants: ' + scenario.event.totalPeople);
+  };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* Control Panel (Sidebar) */}
+    <div className="flex h-screen w-full bg-background overflow-hidden font-sans">
       <Sidebar
-        eventParam={eventParam}
-        setEventParam={setEventParam}
-        intensity={intensity}
-        setIntensity={setIntensity}
+        scenario={scenario}
+        onUpdateEvent={updateEvent}
+        onUpdatePrivate={updatePrivateTransport}
+        onTogglePublic={togglePublicIntegration}
+        onGenerate={generateJson}
+        onClearRoute={clearRoute}
+        onTest={handleTest}
       />
-
-      {/* Main Map View */}
-      <main className="flex-1 h-full overflow-hidden">
-        <MapView intensity={intensity} />
+      <main className="flex-1 relative flex flex-col h-full overflow-hidden">
+        <MapView
+          scenario={scenario}
+          onMapClick={addRouteStop}
+        />
       </main>
     </div>
   );
