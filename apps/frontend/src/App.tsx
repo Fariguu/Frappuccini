@@ -1,37 +1,39 @@
-import Sidebar from './components/Sidebar';
+import ChatSidebar from './components/ChatSidebar';
 import MapView from './components/MapView';
-import { useScenario } from './hooks/useScenario';
+import { useChat } from './hooks/useChat';
 
 function App() {
   const {
-    scenario,
-    updateEvent,
-    updatePrivateTransport,
-    togglePublicIntegration,
-    addRouteStop,
-    clearRoute,
-    generateJson
-  } = useScenario();
-
-  const handleTest = () => {
-    alert('Test button clicked! Current participants: ' + scenario.event.totalPeople);
-  };
+    messages,
+    extractedParams,
+    readyToSimulate,
+    chatLoading,
+    sendMessage,
+    trafficOverlay,
+    selectedHourIndex,
+    setSelectedHourIndex,
+    simulateTraffic,
+    simulateLoading,
+    simulateError,
+  } = useChat();
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-sans">
-      <Sidebar
-        scenario={scenario}
-        onUpdateEvent={updateEvent}
-        onUpdatePrivate={updatePrivateTransport}
-        onTogglePublic={togglePublicIntegration}
-        onGenerate={generateJson}
-        onClearRoute={clearRoute}
-        onTest={handleTest}
+      <ChatSidebar
+        messages={messages}
+        extractedParams={extractedParams}
+        readyToSimulate={readyToSimulate}
+        chatLoading={chatLoading}
+        onSendMessage={sendMessage}
+        onSimulate={simulateTraffic}
+        simulateLoading={simulateLoading}
+        simulateError={simulateError}
       />
       <main className="flex-1 relative flex flex-col h-full overflow-hidden">
         <MapView
-          scenario={scenario}
-          onMapClick={addRouteStop}
+          trafficOverlay={trafficOverlay}
+          selectedHourIndex={selectedHourIndex}
+          onHourChange={setSelectedHourIndex}
         />
       </main>
     </div>

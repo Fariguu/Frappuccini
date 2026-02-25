@@ -1,102 +1,123 @@
-import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMapEvents, Polyline } from 'react-leaflet';
-import L from 'leaflet';
-import type { EventScenario } from '../types/scenario';
+import React, { useEffect, useState, useMemo } from 'react';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import type { TrafficOverlay } from '../types/scenario';
+import { Slider } from './ui/slider';
 
-// Fix for default marker icons
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+const FALLBACK_HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 
 interface MapViewProps {
-    scenario: EventScenario;
-    onMapClick?: (latlng: [number, number]) => void;
+    trafficOverlay?: TrafficOverlay | null;
+    selectedHourIndex?: number;
+    onHourChange?: (index: number) => void;
 }
 
-// Center of Bari
 const BARI_CENTER: [number, number] = [41.1171, 16.8719];
 
-// Mock GeoJSON for roads
-const MOCK_GEOJSON = {
-    "type": "FeatureCollection",
-    "features": [
-        { "type": "Feature", "properties": { "id": "road1", "name": "Via Sparano", "threshold": 0 }, "geometry": { "type": "LineString", "coordinates": [[16.8700, 41.1200], [16.8700, 41.1100]] } },
-        { "type": "Feature", "properties": { "id": "road2", "name": "Corso Vittorio Emanuele", "threshold": 2000 }, "geometry": { "type": "LineString", "coordinates": [[16.8600, 41.1250], [16.8850, 41.1250]] } },
-        { "type": "Feature", "properties": { "id": "road3", "name": "Lungomare", "threshold": 5000 }, "geometry": { "type": "LineString", "coordinates": [[16.8750, 41.1300], [16.9000, 41.1200]] } }
-    ]
-};
+const BARI_BOUNDS: [[number, number], [number, number]] = [
+    [41.025, 16.755],
+    [41.2, 16.985]
+];
 
-// Mock AMTAB & Sharing Nodes
-const AMTAB_STOPS: [number, number][] = [[41.121, 16.865], [41.122, 16.875], [41.123, 16.885]];
-const SHARING_NODES: [number, number][] = [[41.115, 16.868], [41.118, 16.872], [41.112, 16.878]];
-
-const MapEvents = ({ onClick }: { onClick: (latlng: [number, number]) => void }) => {
-    useMapEvents({
-        click: (e) => onClick([e.latlng.lat, e.latlng.lng]),
-    });
-    return null;
-};
-
-const Legend: React.FC = () => {
-    return (
-        <div className="absolute bottom-4 left-4 bg-white/90 border border-secondary/20 p-2 text-[9px] uppercase font-bold tracking-tighter z-[1000] shadow-md flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-                <div className="w-4 h-[1px] bg-[#878787]"></div> <span>Rete stradale base</span>
-            </div>
+const Legend: React.FC<{ showTraffic?: boolean }> = ({ showTraffic }) => (
+    <div className="absolute bottom-4 left-4 bg-white/90 border border-secondary/20 p-2 text-[9px] uppercase font-bold tracking-tighter z-[1000] shadow-md flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+            <div className="w-4 h-[1px] bg-[#878787]"></div> <span>Rete stradale base</span>
+        </div>
+        {showTraffic ? (
+            <>
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-[2px] bg-[#00ff00]"></div> <span>Normale</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-[2px] bg-[#ffa500]"></div> <span>Elevato</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-[2px] bg-[#ff0000]"></div> <span>Critico</span>
+                </div>
+            </>
+        ) : (
             <div className="flex items-center gap-2">
                 <div className="w-4 h-[2px] bg-[#000000]"></div> <span>Traffico previsto</span>
             </div>
-        </div>
-    );
-};
+        )}
+    </div>
+);
 
-const MapView: React.FC<MapViewProps> = ({ scenario, onMapClick }) => {
+const MapView: React.FC<MapViewProps> = ({
+    trafficOverlay,
+    selectedHourIndex = 0,
+    onHourChange,
+}) => {
     const [geoData, setGeoData] = useState<any>(null);
-    const [isSimulation, setIsSimulation] = useState(false);
+    const [backendOffline, setBackendOffline] = useState(false);
 
     useEffect(() => {
-        const fetchData = async () => {
+        (async () => {
             try {
-                const response = await fetch('http://localhost:8000/api/map');
+                const response = await fetch('/api/map');
                 if (!response.ok) throw new Error();
                 const data = await response.json();
                 if (data.error) throw new Error();
                 setGeoData(data);
-                setIsSimulation(false);
+                setBackendOffline(false);
             } catch {
-                setGeoData(MOCK_GEOJSON);
-                setIsSimulation(true);
+                setGeoData(null);
+                setBackendOffline(true);
             }
-        };
-        fetchData();
+        })();
     }, []);
+
+    const hours = trafficOverlay?.hours ?? FALLBACK_HOURS;
+    const timeStr = hours[Math.min(selectedHourIndex, hours.length - 1)];
+
+    const streetColors = useMemo(() => {
+        if (!trafficOverlay?.by_street?.[timeStr]) return null;
+        return trafficOverlay.by_street[timeStr];
+    }, [trafficOverlay, timeStr]);
+
+    const quartiereColors = useMemo(() => {
+        if (!trafficOverlay?.by_quartiere?.[timeStr]) return null;
+        const qc = trafficOverlay.by_quartiere[timeStr];
+        const out: Record<string, string> = {};
+        for (const [k, v] of Object.entries(qc)) {
+            out[k.toUpperCase().trim()] = v;
+        }
+        return out;
+    }, [trafficOverlay, timeStr]);
 
     const roadStyle = (feature: any) => {
         const props = feature?.properties || {};
-        const threshold = props.threshold ?? 0;
-        const participants = scenario.event.totalPeople;
-        const isActive = participants >= threshold;
-        const virtualIntensity = Math.min(100, participants / 100);
+        const streetName: string | null = props.street_name ?? null;
+
+        if (streetColors && streetName) {
+            const color = streetColors[streetName];
+            if (color) {
+                const weight = color === '#ff0000' ? 3 : color === '#ffa500' ? 2.5 : 2;
+                return { color, weight, opacity: 0.85 };
+            }
+        }
+
+        if (quartiereColors) {
+            const q1 = (props.quartiere_ ?? '').toUpperCase().trim();
+            const q2 = (props.quartier_1 ?? '').toUpperCase().trim();
+            const color = quartiereColors[q1] ?? quartiereColors[q2] ?? '#00ff00';
+            const weight = color === '#ff0000' ? 3 : color === '#ffa500' ? 2.5 : 2;
+            return { color, weight, opacity: 0.85 };
+        }
+
         return {
-            color: isActive ? "#000000" : "#878787",
-            weight: isActive ? (2 + virtualIntensity / 20) : 1,
-            opacity: isActive ? 1 : 0.4,
+            color: '#878787',
+            weight: 1,
+            opacity: 0.4,
         };
     };
 
     return (
-        <div className="flex-1 bg-background relative overflow-hidden flex items-center justify-center">
-            {isSimulation && (
+        <div className="w-full h-full bg-background relative overflow-hidden">
+            {backendOffline && (
                 <div className="absolute top-4 left-4 bg-zinc-900 text-white px-3 py-1 text-[10px] font-bold z-[2000] uppercase tracking-widest shadow-lg flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                    FALLBACK: dati mock (backend non disponibile)
+                    Dati stradali non disponibili (backend offline)
                 </div>
             )}
 
@@ -104,55 +125,56 @@ const MapView: React.FC<MapViewProps> = ({ scenario, onMapClick }) => {
                 GIS View: Cartografia_Bari_v02
             </div>
 
-            <MapContainer center={BARI_CENTER} zoom={14} className="w-full h-full" zoomControl={false}>
+            <MapContainer
+                center={BARI_CENTER}
+                zoom={14}
+                minZoom={11}
+                maxZoom={18}
+                maxBounds={BARI_BOUNDS}
+                maxBoundsViscosity={1}
+                className="w-full h-full"
+                zoomControl={false}
+            >
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; OSM'
                 />
 
-                {onMapClick && <MapEvents onClick={onMapClick} />}
-
                 {geoData && (
                     <GeoJSON
-                        key={`${isSimulation}-${scenario.event.totalPeople}`}
+                        key={`geo-${selectedHourIndex}-${!!trafficOverlay}`}
                         data={geoData}
                         style={roadStyle}
                     />
                 )}
 
-                {/* Dynamic Route Polyline */}
-                {scenario.privateTransport.routeStops.length > 1 && (
-                    <Polyline
-                        positions={scenario.privateTransport.routeStops}
-                        color="#000000"
-                        weight={3}
-                        dashArray="1, 8"
-                    />
+                <Legend showTraffic={!!trafficOverlay} />
+
+                {trafficOverlay && onHourChange && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[min(480px,92%)] bg-white/95 border border-secondary/20 p-4 rounded-lg shadow-lg z-[1000]">
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary">Fascia Oraria</span>
+                            <span className="text-sm font-mono font-bold tabular-nums">{timeStr}</span>
+                        </div>
+                        <Slider
+                            min={0}
+                            max={hours.length - 1}
+                            step={1}
+                            value={[selectedHourIndex]}
+                            onValueChange={([v]) => onHourChange(v)}
+                        />
+                        <div className="flex justify-between mt-2 text-[9px] text-secondary">
+                            {hours.map((h, i) => {
+                                const showLabel = hours.length <= 8 || i % Math.ceil(hours.length / 8) === 0 || i === hours.length - 1;
+                                return (
+                                    <span key={h} className={`${i === selectedHourIndex ? 'font-bold text-primary' : ''} ${showLabel ? '' : 'invisible'}`}>
+                                        {h.slice(0, 5)}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
-
-                {/* Route Markers */}
-                {scenario.privateTransport.routeStops.map((pos, i) => (
-                    <Marker key={`stop-${i}`} position={pos} icon={L.divIcon({ className: 'bg-black w-2 h-2 border border-white' })} />
-                ))}
-
-                {/* AMTAB Overlay */}
-                {scenario.publicTransportIntegration.includes('amtab') && AMTAB_STOPS.map((pos, i) => (
-                    <Marker key={`amtab-${i}`} position={pos} icon={L.divIcon({ className: 'bg-black w-2 h-2 rounded-full border border-white' })} />
-                ))}
-
-                {/* Sharing Overlay */}
-                {scenario.publicTransportIntegration.includes('sharing') && SHARING_NODES.map((pos, i) => (
-                    <Marker key={`sharing-${i}`} position={pos} icon={L.divIcon({ className: 'bg-white w-2 h-2 rounded-full border-2 border-black' })} />
-                ))}
-
-                {/* Event Marker P */}
-                <Marker position={scenario.event.location.coords}>
-                    <Popup>
-                        <div className="text-[10px] uppercase font-bold">{scenario.event.name || "Evento"}</div>
-                    </Popup>
-                </Marker>
-
-                <Legend />
             </MapContainer>
         </div>
     );

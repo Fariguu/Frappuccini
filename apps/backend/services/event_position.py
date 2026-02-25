@@ -52,6 +52,35 @@ def _load_bbox() -> dict[str, list[float]]:
         return {}
 
 
+def _get_bari_bbox() -> tuple[float, float, float, float] | None:
+    """Restituisce bbox complessiva Bari (min_lng, min_lat, max_lng, max_lat) da neighborhoods."""
+    bbox = _load_bbox()
+    if not bbox:
+        return None
+    min_lng = min_lat = float("inf")
+    max_lng = max_lat = float("-inf")
+    for coords in bbox.values():
+        if len(coords) != 4:
+            continue
+        mn_lng, mn_lat, mx_lng, mx_lat = coords
+        min_lng = min(min_lng, mn_lng)
+        min_lat = min(min_lat, mn_lat)
+        max_lng = max(max_lng, mx_lng)
+        max_lat = max(max_lat, mx_lat)
+    if min_lng == float("inf"):
+        return None
+    return (min_lng, min_lat, max_lng, max_lat)
+
+
+def _is_in_bari_bbox(lng: float, lat: float) -> bool:
+    """Verifica se (lng, lat) ricade nella bbox di Bari (solo dati Bari)."""
+    bari = _get_bari_bbox()
+    if not bari:
+        return False
+    min_lng, min_lat, max_lng, max_lat = bari
+    return min_lng <= lng <= max_lng and min_lat <= lat <= max_lat
+
+
 def _normalize_neighborhood(name: str) -> str:
     """Normalizza nome quartiere per confronto."""
     if not name:
@@ -86,6 +115,8 @@ def event_position_to_neighborhood(
         coords = geocode_place(venue.strip())
         if coords:
             lat, lng = coords
+            if not _is_in_bari_bbox(lng, lat):
+                return None
             return point_in_neighborhood(lng, lat)
 
     if position is None:

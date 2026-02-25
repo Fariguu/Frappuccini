@@ -138,10 +138,10 @@ ROAD_SPEED_RANGE = {
 ROAD_BASE_DISTANCE = {'Highway': 10.0, 'Main Road': 5.0, 'Local Road': 2.5}
 
 def sinusoidal_factor(hours: np.ndarray) -> np.ndarray:
-    """Doppio picco: 08:00 (mattina) e 18:00 (sera)."""
+    """Doppio picco realistico: 08:00 (mattina, pendolari+scuola) e 18:00 (sera)."""
     morning = np.exp(-0.5 * ((hours - 8) / 2.5) ** 2)
     evening = np.exp(-0.5 * ((hours - 18) / 2.5) ** 2)
-    combined = 0.6 * morning + 0.8 * evening
+    combined = 0.80 * morning + 0.85 * evening
     return 0.05 + 0.95 * np.clip(combined, 0, 1.0)
 
 def build_street_df(street: str, meta: dict, timestamps: pd.DatetimeIndex, rng: np.random.Generator) -> pd.DataFrame:
@@ -180,7 +180,7 @@ def build_street_df(street: str, meta: dict, timestamps: pd.DatetimeIndex, rng: 
 
     wk_morning   = is_weekend & (hours >= 7) & (hours <= 10)
     wk_afternoon = is_weekend & (hours >= 11) & (hours <= 16)
-    h_factor = np.where(wk_morning,   h_factor * 0.60, h_factor)
+    h_factor = np.where(wk_morning,   h_factor * 0.75, h_factor)
     h_factor = np.where(wk_afternoon, h_factor * 1.15, h_factor)
 
     # Rumore organico per singola ora e strada (±15%)

@@ -24,11 +24,16 @@ def color_to_level(color: str) -> str:
     return COLOR_TO_LEVEL.get(color, "?")
 
 
+def _extract_by_street(data: dict) -> dict:
+    """Estrae by_street dalla risposta API (formato nuovo)."""
+    return data.get("by_street", data)
+
+
 def fetch_baseline(date: str) -> dict:
     url = f"{BASE_URL}/api/baseline?date={date}"
     req = Request(url, method="GET")
     with urlopen(req) as resp:
-        return json.load(resp)
+        return _extract_by_street(json.load(resp))
 
 
 def fetch_simulate(date: str, event: dict) -> dict:
@@ -36,7 +41,7 @@ def fetch_simulate(date: str, event: dict) -> dict:
     data = json.dumps(event).encode("utf-8")
     req = Request(url, data=data, method="POST", headers={"Content-Type": "application/json"})
     with urlopen(req) as resp:
-        return json.load(resp)
+        return _extract_by_street(json.load(resp))
 
 
 def build_comparison_table(baseline: dict, with_event: dict):

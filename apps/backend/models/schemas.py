@@ -10,7 +10,7 @@ class EventPosition(BaseModel):
 
     lat: float | None = None
     lng: float | None = None
-    neighborhood: str | None = None  # es. "S.Nicola", "Poggiofranco"
+    neighborhood: str | None = None
 
     @model_validator(mode="after")
     def check_at_least_one(self):
@@ -24,26 +24,41 @@ class EventPosition(BaseModel):
 
 
 class SimulateDayRequest(BaseModel):
-    """
-    Richiesta di simulazione traffico per una data con evento.
-
-    Attributes:
-        event_name: Nome dell'evento (es. "Concerto Stadio San Nicola").
-        capacity: Capacità massima in persone.
-        vip_names: Lista nomi ospiti VIP che influenzano l'impatto.
-        date: Data in formato YYYY-MM-DD.
-        event_end_time: Orario fine evento (es. "22:00"); l'esodo si concentra
-            nelle ore successive (50% ora fine, 30% ora+1, 20% ora-1).
-        event_position: Posizione evento (coordinate o quartiere).
-        event_venue: Nome luogo per geocoding (es. "Stadio San Nicola, Bari").
-        multiplier: Opzionale; se fornito bypassa Gemini (utile per test).
-    """
-
     event_name: str
     capacity: int
     vip_names: list[str]
-    date: str  # YYYY-MM-DD
-    event_end_time: str = "22:00"  # Orario fine evento (esodo nelle ore successive)
+    date: str
+    event_end_time: str = "22:00"
     event_position: EventPosition | None = None
-    event_venue: str | None = None  # Nome luogo per geocoding (Nominatim)
-    multiplier: float | None = None  # Opzionale: bypassa Gemini per test
+    event_venue: str | None = None
+    multiplier: float | None = None
+
+
+# --------------- Chat models ---------------
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
+class ExtractedParams(BaseModel):
+    event_name: str | None = None
+    venue: str | None = None
+    date: str | None = None
+    end_time: str | None = None
+    capacity: int | None = None
+    vip_names: list[str] = []
+    vip_analysis: str | None = None
+    estimated_multiplier: float | None = None
+    confidence: str | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    extracted_params: ExtractedParams
+    ready_to_simulate: bool
+    missing_info: list[str] = []

@@ -29,6 +29,20 @@ CONGESTION_COLOR_MAP = {
     "Normal": "#00ff00",
 }
 
+# Mapping GeoJSON quartiere_ (macro-area) -> quartieri CSV del dataset
+GEOJSON_QUARTIERE_MAP: dict[str, list[str]] = {
+    "BARI": [
+        "S.Nicola", "Murat", "Madonnella", "Poggiofranco", "Carrassi",
+        "Libertà", "LibertàPicone(Municipio 2)", "S. Pasquale", "Stanic", "Japigia",
+    ],
+    "TORRE A MARE": ["Torre A Mare", "Torre a Mare"],
+    "CARBONARA": ["Carbonara"],
+    "CEGLIE DEL CAMPO": ["Ceglie del Campo"],
+    "LOSETO": ["Loseto"],
+    "PALESE": ["Palese"],
+    "SANTO SPIRITO": ["Santo Spirito"],
+}
+
 # Origini CORS consentite (frontend dev)
 CORS_ORIGINS = [
     "http://localhost:5173",

@@ -73,6 +73,15 @@ class TestEventPositionToNeighborhood:
             n = event_position_to_neighborhood(None, "Luogo Inesistente XYZ")
             assert n is None
 
+    def test_venue_outside_bari_returns_none(self):
+        """Coordinate da Nominatim fuori bbox Bari vengono rifiutate."""
+        with patch(
+            "services.event_position.geocode_place",
+            return_value=(45.46, 9.19),  # Milano
+        ):
+            n = event_position_to_neighborhood(None, "Duomo Milano")
+            assert n is None
+
 
 class TestGetDecayFactor:
     """Test get_decay_factor."""
